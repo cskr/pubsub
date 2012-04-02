@@ -48,7 +48,7 @@ func New() *PubSub {
 
 // Sub returns a channel on which messages published to
 // the specified topic can be received. Sub returns err != nil
-// if PubSub is closed.
+// if PubSub was shutdown.
 func (ps *PubSub) Sub(topic string) (ch chan any, err error) {
 	return ps.dosub(ps.sub, topic)
 }
@@ -72,7 +72,7 @@ func (ps *PubSub) dosub(cmdChan chan cmd, topic string) (ch chan any, err error)
 
 // Pub publishes the given message to all subscribers of
 // the specified topic. Pub returns an error if PubSub
-// is closed.
+// was shutdown.
 func (ps *PubSub) Pub(topic string, msg any) error {
 	if ps.shutdown {
 		return errors.New("Pub after Shutdown")
@@ -83,7 +83,7 @@ func (ps *PubSub) Pub(topic string, msg any) error {
 }
 
 // Unsub unsubscribes the given channel from the specified
-// topic. Unsub returns an error if PubSub is closed.
+// topic. Unsub returns an error if PubSub was shutdown.
 func (ps *PubSub) Unsub(topic string, ch chan any) error {
 	if ps.shutdown {
 		return errors.New("Unsub after Shutdown")
