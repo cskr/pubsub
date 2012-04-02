@@ -107,6 +107,7 @@ func (ps *PubSub) send(topic string, msg any) {
 }
 
 func (ps *PubSub) remove(topic string, ch chan any) {
+	close(ch)
 	delete(ps.topics[topic], ch)
 	if len(ps.topics[topic]) == 0 {
 		delete(ps.topics, topic)
