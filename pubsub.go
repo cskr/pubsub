@@ -94,14 +94,20 @@ func (ps *PubSub) Unsub(topic string, ch chan any) error {
 }
 
 // Shutdown closes all subscribed channels. PubSub cannot be used
-// after it has been shutdown.
-func (ps *PubSub) Shutdown() {
+// after it has been shutdown. Shutdown returns an error if PubSub
+// has already been shutdown.
+func (ps *PubSub) Shutdown() error {
+	if ps.shutdown {
+		return errors.New("Already Shutdown.")
+	}
+
 	ps.shutdown = true
 
 	close(ps.sub)
 	close(ps.subOnce)
 	close(ps.pub)
 	close(ps.unsub)
+	return nil
 }
 
 func (ps *PubSub) start() {
