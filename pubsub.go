@@ -28,6 +28,7 @@ import "errors"
 type PubSub struct {
 	topics                   map[string]map[chan interface{}]bool
 	sub, subOnce, pub, unsub chan cmd
+	capacity                 int
 	shutdown                 bool
 }
 
@@ -37,9 +38,10 @@ type cmd struct {
 }
 
 // New creates a new PubSub and starts a goroutine for handling operations.
-func New() *PubSub {
+// The capacity of the channels created by Sub and SubOnce will be as specified.
+func New(capacity int) *PubSub {
 	topics := make(map[string]map[chan interface{}]bool)
-	ps := PubSub{topics, make(chan cmd), make(chan cmd), make(chan cmd), make(chan cmd), false}
+	ps := PubSub{topics, make(chan cmd), make(chan cmd), make(chan cmd), make(chan cmd), capacity, false}
 	go ps.start()
 	return &ps
 }
@@ -63,7 +65,7 @@ func (ps *PubSub) dosub(cmdChan chan cmd, topic string) (ch chan interface{}, er
 		return
 	}
 
-	ch = make(chan interface{})
+	ch = make(chan interface{}, ps.capacity)
 	cmdChan <- cmd{topic, ch}
 	return
 }
