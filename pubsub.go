@@ -27,6 +27,7 @@ import "errors"
 // PubSub is a collection of topics.
 type PubSub struct {
 	topics                   map[string]map[chan interface{}]bool
+	revTopics                map[chan interface{}]map[string]bool
 	sub, subOnce, pub, unsub chan cmd
 	capacity                 int
 	shutdown                 bool
@@ -41,32 +42,37 @@ type cmd struct {
 // The capacity of the channels created by Sub and SubOnce will be as specified.
 func New(capacity int) *PubSub {
 	topics := make(map[string]map[chan interface{}]bool)
-	ps := PubSub{topics, make(chan cmd), make(chan cmd), make(chan cmd), make(chan cmd), capacity, false}
+	revTopics := make(map[chan interface{}]map[string]bool)
+	ps := PubSub{topics, revTopics, make(chan cmd), make(chan cmd), make(chan cmd), make(chan cmd), capacity, false}
+
 	go ps.start()
+
 	return &ps
 }
 
-// Sub returns a channel on which messages published to
-// the specified topic can be received. Sub returns err != nil
+// Sub returns a channel on which messages published on any of
+// the specified topics can be received. Sub returns err != nil
 // if PubSub was shutdown.
-func (ps *PubSub) Sub(topic string) (ch chan interface{}, err error) {
-	return ps.dosub(ps.sub, topic)
+func (ps *PubSub) Sub(topics ...string) (ch chan interface{}, err error) {
+	return ps.doSub(ps.sub, topics...)
 }
 
-// SubOnce is similar to Sub, but only the first message
-// published to the topic can be received.
-func (ps *PubSub) SubOnce(topic string) (ch chan interface{}, err error) {
-	return ps.dosub(ps.subOnce, topic)
+// SubOnce is similar to Sub, but only the first message published on any of the
+// specified topics after subscription can be received.
+func (ps *PubSub) SubOnce(topics ...string) (ch chan interface{}, err error) {
+	return ps.doSub(ps.subOnce, topics...)
 }
 
-func (ps *PubSub) dosub(cmdChan chan cmd, topic string) (ch chan interface{}, err error) {
+func (ps *PubSub) doSub(cmdChan chan cmd, topics ...string) (ch chan interface{}, err error) {
 	if ps.shutdown {
 		err = errors.New("Sub after Shutdown")
 		return
 	}
 
 	ch = make(chan interface{}, ps.capacity)
-	cmdChan <- cmd{topic, ch}
+	for _, topic := range topics {
+		cmdChan <- cmd{topic, ch}
+	}
 	return
 }
 
@@ -149,23 +155,35 @@ func (ps *PubSub) add(topic string, ch chan interface{}, once bool) {
 	if ps.topics[topic] == nil {
 		ps.topics[topic] = make(map[chan interface{}]bool)
 	}
-
 	ps.topics[topic][ch] = once
+
+	if ps.revTopics[ch] == nil {
+		ps.revTopics[ch] = make(map[string]bool)
+	}
+	ps.revTopics[ch][topic] = true
 }
 
 func (ps *PubSub) send(topic string, msg interface{}) {
 	for ch, once := range ps.topics[topic] {
 		ch <- msg
 		if once {
-			ps.remove(topic, ch)
+			for topic := range ps.revTopics[ch] {
+				ps.remove(topic, ch)
+			}
 		}
 	}
 }
 
 func (ps *PubSub) remove(topic string, ch chan interface{}) {
-	close(ch)
 	delete(ps.topics[topic], ch)
+	delete(ps.revTopics[ch], topic)
+
 	if len(ps.topics[topic]) == 0 {
 		delete(ps.topics, topic)
+	}
+
+	if len(ps.revTopics[ch]) == 0 {
+		close(ch)
+		delete(ps.revTopics, ch)
 	}
 }
