@@ -17,19 +17,15 @@ type Suite struct{}
 
 func (s *Suite) TestSub(c *check.C) {
 	ps := New(1)
-	ch1, err := ps.Sub("t1")
-	c.Check(err, check.Equals, nil)
-	ch2, err := ps.Sub("t1")
-	c.Check(err, check.Equals, nil)
-	ch3, err := ps.Sub("t2")
-	c.Check(err, check.Equals, nil)
+	ch1 := ps.Sub("t1")
+	ch2 := ps.Sub("t1")
+	ch3 := ps.Sub("t2")
 
-	err = ps.Pub("t1", "hi")
-	c.Check(err, check.Equals, nil)
+	ps.Pub("t1", "hi")
 	c.Check(<-ch1, check.Equals, "hi")
 	c.Check(<-ch2, check.Equals, "hi")
 
-	err = ps.Pub("t2", "hello")
+	ps.Pub("t2", "hello")
 	c.Check(<-ch3, check.Equals, "hello")
 
 	ps.Shutdown()
@@ -43,11 +39,9 @@ func (s *Suite) TestSub(c *check.C) {
 
 func (s *Suite) TestSubOnce(c *check.C) {
 	ps := New(1)
-	ch, err := ps.SubOnce("t1")
-	c.Check(err, check.Equals, nil)
+	ch := ps.SubOnce("t1")
 
-	err = ps.Pub("t1", "hi")
-	c.Check(err, check.Equals, nil)
+	ps.Pub("t1", "hi")
 	c.Check(<-ch, check.Equals, "hi")
 
 	_, ok := <-ch
@@ -57,11 +51,9 @@ func (s *Suite) TestSubOnce(c *check.C) {
 
 func (s *Suite) TestUnsub(c *check.C) {
 	ps := New(1)
-	ch, err := ps.Sub("t1")
-	c.Check(err, check.Equals, nil)
+	ch := ps.Sub("t1")
 
-	err = ps.Pub("t1", "hi")
-	c.Check(err, check.Equals, nil)
+	ps.Pub("t1", "hi")
 	c.Check(<-ch, check.Equals, "hi")
 
 	ps.Unsub("t1", ch)
@@ -79,15 +71,12 @@ func (s *Suite) TestShutdown(c *check.C) {
 
 func (s *Suite) TestMultiSub(c *check.C) {
 	ps := New(1)
-	ch, err := ps.Sub("t1", "t2")
-	c.Check(err, check.Equals, nil)
+	ch := ps.Sub("t1", "t2")
 
-	err = ps.Pub("t1", "hi")
-	c.Check(err, check.Equals, nil)
+	ps.Pub("t1", "hi")
 	c.Check(<-ch, check.Equals, "hi")
 
-	err = ps.Pub("t2", "hello")
-	c.Check(err, check.Equals, nil)
+	ps.Pub("t2", "hello")
 	c.Check(<-ch, check.Equals, "hello")
 
 	ps.Shutdown()
@@ -97,15 +86,12 @@ func (s *Suite) TestMultiSub(c *check.C) {
 
 func (s *Suite) TestMultiSubOnce(c *check.C) {
 	ps := New(1)
-	ch, err := ps.SubOnce("t1", "t2")
-	c.Check(err, check.Equals, nil)
+	ch := ps.SubOnce("t1", "t2")
 
-	err = ps.Pub("t1", "hi")
-	c.Check(err, check.Equals, nil)
+	ps.Pub("t1", "hi")
 	c.Check(<-ch, check.Equals, "hi")
 
-	err = ps.Pub("t2", "hello")
-	c.Check(err, check.Equals, nil)
+	ps.Pub("t2", "hello")
 
 	_, ok := <-ch
 	c.Check(ok, check.Equals, false)
@@ -114,17 +100,13 @@ func (s *Suite) TestMultiSubOnce(c *check.C) {
 
 func (s *Suite) TestMultiUnsub(c *check.C) {
 	ps := New(1)
-	ch, err := ps.Sub("t1", "t2")
-	c.Check(err, check.Equals, nil)
+	ch := ps.Sub("t1", "t2")
 
-	err = ps.Unsub("t1", ch)
-	c.Check(err, check.Equals, nil)
+	ps.Unsub("t1", ch)
 
-	err = ps.Pub("t1", "hi")
-	c.Check(err, check.Equals, nil)
+	ps.Pub("t1", "hi")
 
-	err = ps.Pub("t2", "hello")
-	c.Check(err, check.Equals, nil)
+	ps.Pub("t2", "hello")
 	c.Check(<-ch, check.Equals, "hello")
 
 	ps.Shutdown()

@@ -22,15 +22,13 @@
 // all of them receive messages published on the topic.
 package pubsub
 
-import "errors"
-
 // PubSub is a collection of topics.
 type PubSub struct {
 	topics                   map[string]map[chan interface{}]bool
 	revTopics                map[chan interface{}]map[string]bool
 	sub, subOnce, pub, unsub chan cmd
+	shutdown                 chan bool
 	capacity                 int
-	shutdown                 bool
 }
 
 type cmd struct {
@@ -43,7 +41,7 @@ type cmd struct {
 func New(capacity int) *PubSub {
 	topics := make(map[string]map[chan interface{}]bool)
 	revTopics := make(map[chan interface{}]map[string]bool)
-	ps := PubSub{topics, revTopics, make(chan cmd), make(chan cmd), make(chan cmd), make(chan cmd), capacity, false}
+	ps := PubSub{topics, revTopics, make(chan cmd), make(chan cmd), make(chan cmd), make(chan cmd), make(chan bool), capacity}
 
 	go ps.start()
 
@@ -51,96 +49,62 @@ func New(capacity int) *PubSub {
 }
 
 // Sub returns a channel on which messages published on any of
-// the specified topics can be received. Sub returns err != nil
-// if PubSub was shutdown.
-func (ps *PubSub) Sub(topics ...string) (ch chan interface{}, err error) {
+// the specified topics can be received.
+func (ps *PubSub) Sub(topics ...string) chan interface{} {
 	return ps.doSub(ps.sub, topics...)
 }
 
-// SubOnce is similar to Sub, but only the first message published on any of the
-// specified topics after subscription can be received.
-func (ps *PubSub) SubOnce(topics ...string) (ch chan interface{}, err error) {
+// SubOnce is similar to Sub, but only the first message published, after subscription,
+// on any of the specified topics can be received.
+func (ps *PubSub) SubOnce(topics ...string) chan interface{} {
 	return ps.doSub(ps.subOnce, topics...)
 }
 
-func (ps *PubSub) doSub(cmdChan chan cmd, topics ...string) (ch chan interface{}, err error) {
-	if ps.shutdown {
-		err = errors.New("Sub after Shutdown")
-		return
-	}
-
-	ch = make(chan interface{}, ps.capacity)
+func (ps *PubSub) doSub(cmdChan chan cmd, topics ...string) chan interface{} {
+	ch := make(chan interface{}, ps.capacity)
 	for _, topic := range topics {
 		cmdChan <- cmd{topic, ch}
 	}
-	return
+	return ch
 }
 
 // Pub publishes the given message to all subscribers of
-// the specified topic. Pub returns an error if PubSub
-// was shutdown.
-func (ps *PubSub) Pub(topic string, msg interface{}) error {
-	if ps.shutdown {
-		return errors.New("Pub after Shutdown")
-	}
-
+// the specified topic.
+func (ps *PubSub) Pub(topic string, msg interface{}) {
 	ps.pub <- cmd{topic, msg}
-	return nil
 }
 
 // Unsub unsubscribes the given channel from the specified
-// topic. Unsub returns an error if PubSub was shutdown.
-func (ps *PubSub) Unsub(topic string, ch chan interface{}) error {
-	if ps.shutdown {
-		return errors.New("Unsub after Shutdown")
-	}
-
+// topic.
+func (ps *PubSub) Unsub(topic string, ch chan interface{}) {
 	ps.unsub <- cmd{topic, ch}
-	return nil
 }
 
 // Shutdown closes all subscribed channels and terminates the goroutine.
-// PubSub cannot be used after it has been shutdown.
+//
+// BEWARE: Any operation after Shutdown will cause a run-time panic.
 func (ps *PubSub) Shutdown() {
-	if ps.shutdown {
-		return
-	}
-
-	ps.shutdown = true
-
-	close(ps.sub)
-	close(ps.subOnce)
-	close(ps.pub)
-	close(ps.unsub)
+	ps.shutdown <- true
 }
 
 func (ps *PubSub) start() {
 loop:
 	for {
 		select {
-		case cmd, ok := <-ps.sub:
-			if !ok {
-				break loop
-			}
+		case cmd := <-ps.sub:
 			ps.add(cmd.topic, cmd.data.(chan interface{}), false)
 
-		case cmd, ok := <-ps.subOnce:
-			if !ok {
-				break loop
-			}
+		case cmd := <-ps.subOnce:
 			ps.add(cmd.topic, cmd.data.(chan interface{}), true)
 
-		case cmd, ok := <-ps.pub:
-			if !ok {
-				break loop
-			}
+		case cmd := <-ps.pub:
 			ps.send(cmd.topic, cmd.data.(interface{}))
 
-		case cmd, ok := <-ps.unsub:
-			if !ok {
-				break loop
-			}
+		case cmd := <-ps.unsub:
 			ps.remove(cmd.topic, cmd.data.(chan interface{}))
+
+		case <-ps.shutdown:
+			break loop
 		}
 	}
 
