@@ -19,7 +19,7 @@
 //
 // Topics must be strings and messages of any type can be
 // published. A topic can have any number of subcribers and
-// all of them receive the messages published to the topic.
+// all of them receive messages published on the topic.
 package pubsub
 
 import "errors"
@@ -99,8 +99,8 @@ func (ps *PubSub) Unsub(topic string, ch chan interface{}) error {
 	return nil
 }
 
-// Shutdown closes all subscribed channels. PubSub cannot be used
-// after it has been shutdown.
+// Shutdown closes all subscribed channels and terminates the goroutine.
+// PubSub cannot be used after it has been shutdown.
 func (ps *PubSub) Shutdown() {
 	if ps.shutdown {
 		return
