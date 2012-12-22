@@ -2,7 +2,9 @@ package pubsub
 
 import (
 	check "launchpad.net/gocheck"
+	"runtime"
 	"testing"
+	"time"
 )
 
 var _ = check.Suite(new(Suite))
@@ -66,6 +68,13 @@ func (s *Suite) TestUnsub(c *check.C) {
 	_, ok := <-ch
 	c.Check(ok, check.Equals, false)
 	ps.Shutdown()
+}
+
+func (s *Suite) TestShutdown(c *check.C) {
+	start := runtime.NumGoroutine()
+	New(10).Shutdown()
+	time.Sleep(1)
+	c.Check(runtime.NumGoroutine()-start, check.Equals, 1)
 }
 
 func (s *Suite) TestMultiSub(c *check.C) {
