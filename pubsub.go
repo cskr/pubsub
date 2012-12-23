@@ -81,8 +81,6 @@ func (ps *PubSub) Unsub(topic string, ch chan interface{}) {
 }
 
 // Shutdown closes all subscribed channels and terminates the goroutine.
-//
-// BEWARE: Any operation after Shutdown will cause a run-time panic.
 func (ps *PubSub) Shutdown() {
 	ps.shutdown <- true
 }
