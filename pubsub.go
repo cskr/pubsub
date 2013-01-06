@@ -40,13 +40,22 @@ type cmd struct {
 // New creates a new PubSub and starts a goroutine for handling operations.
 // The capacity of the channels created by Sub and SubOnce will be as specified.
 func New(capacity int) *PubSub {
-	topics := make(map[string]map[chan interface{}]bool)
-	revTopics := make(map[chan interface{}]map[string]bool)
-	ps := PubSub{topics, revTopics, make(chan cmd), make(chan cmd), make(chan cmd), make(chan cmd), make(chan string), make(chan bool), capacity}
+	ps := new(PubSub)
+	ps.capacity = capacity
+
+	ps.topics = make(map[string]map[chan interface{}]bool)
+	ps.revTopics = make(map[chan interface{}]map[string]bool)
+
+	ps.sub = make(chan cmd)
+	ps.subOnce = make(chan cmd)
+	ps.pub = make(chan cmd)
+	ps.unsub = make(chan cmd)
+	ps.close = make(chan string)
+	ps.shutdown = make(chan bool)
 
 	go ps.start()
 
-	return &ps
+	return ps
 }
 
 // Sub returns a channel on which messages published on any of
