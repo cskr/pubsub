@@ -4,6 +4,8 @@ Install pubsub with,
 
 View the [API Documentation](http://gopkgdoc.appspot.com/pkg/github.com/tuxychandru/pubsub).
 
+[![Build Status](http://goci.me/project/image/github.com/tuxychandru/pubsub)](http://goci.me/project/github.com/tuxychandru/pusub)
+
 ## License
 
 Copyright (C) 2012 Chandra Sekar S
