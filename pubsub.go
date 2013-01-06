@@ -169,6 +169,14 @@ func (ps *PubSub) removeTopic(topic string) {
 }
 
 func (ps *PubSub) remove(topic string, ch chan interface{}) {
+	if _, ok := ps.topics[topic]; !ok {
+		return
+	}
+
+	if _, ok := ps.topics[topic][ch]; !ok {
+		return
+	}
+
 	delete(ps.topics[topic], ch)
 	delete(ps.revTopics[ch], topic)
 

@@ -89,6 +89,19 @@ func (s *Suite) TestClose(c *check.C) {
 	ps.Shutdown()
 }
 
+func (s *Suite) TestUnsubAfterClose(c *check.C) {
+	ps := New(1)
+	ch := ps.Sub("t1")
+	defer func() {
+		ps.Unsub(ch, "t1")
+		ps.Shutdown()
+	}()
+
+	ps.Close("t1")
+	_, ok := <-ch
+	c.Check(ok, check.Equals, false)
+}
+
 func (s *Suite) TestShutdown(c *check.C) {
 	start := runtime.NumGoroutine()
 	New(10).Shutdown()
