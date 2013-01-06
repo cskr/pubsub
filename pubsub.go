@@ -27,6 +27,7 @@ type PubSub struct {
 	topics                   map[string]map[chan interface{}]bool
 	revTopics                map[chan interface{}]map[string]bool
 	sub, subOnce, pub, unsub chan cmd
+	close                    chan string
 	shutdown                 chan bool
 	capacity                 int
 }
@@ -41,7 +42,7 @@ type cmd struct {
 func New(capacity int) *PubSub {
 	topics := make(map[string]map[chan interface{}]bool)
 	revTopics := make(map[chan interface{}]map[string]bool)
-	ps := PubSub{topics, revTopics, make(chan cmd), make(chan cmd), make(chan cmd), make(chan cmd), make(chan bool), capacity}
+	ps := PubSub{topics, revTopics, make(chan cmd), make(chan cmd), make(chan cmd), make(chan cmd), make(chan string), make(chan bool), capacity}
 
 	go ps.start()
 
@@ -80,6 +81,15 @@ func (ps *PubSub) Unsub(topic string, ch chan interface{}) {
 	ps.unsub <- cmd{topic, ch}
 }
 
+// Close closes all channels currently subscribed to the specified topics.
+// If a channel is subscribed to multiple topics, some of which is
+// not specified, it is not closed.
+func (ps *PubSub) Close(topics ...string) {
+	for _, topic := range topics {
+		ps.close <- topic
+	}
+}
+
 // Shutdown closes all subscribed channels and terminates the goroutine.
 func (ps *PubSub) Shutdown() {
 	ps.shutdown <- true
@@ -100,6 +110,9 @@ loop:
 
 		case cmd := <-ps.unsub:
 			ps.remove(cmd.topic, cmd.data.(chan interface{}))
+
+		case topic := <-ps.close:
+			ps.removeTopic(topic)
 
 		case <-ps.shutdown:
 			break loop
@@ -133,6 +146,12 @@ func (ps *PubSub) send(topic string, msg interface{}) {
 				ps.remove(topic, ch)
 			}
 		}
+	}
+}
+
+func (ps *PubSub) removeTopic(topic string) {
+	for ch := range ps.topics[topic] {
+		ps.remove(topic, ch)
 	}
 }
 
