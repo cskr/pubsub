@@ -79,15 +79,19 @@ func (ps *PubSub) doSub(cmdChan chan cmd, topics ...string) chan interface{} {
 }
 
 // Pub publishes the given message to all subscribers of
-// the specified topic.
-func (ps *PubSub) Pub(topic string, msg interface{}) {
-	ps.pub <- cmd{topic, msg}
+// the specified topics.
+func (ps *PubSub) Pub(msg interface{}, topics ...string) {
+	for _, topic := range topics {
+		ps.pub <- cmd{topic, msg}
+	}
 }
 
 // Unsub unsubscribes the given channel from the specified
-// topic.
-func (ps *PubSub) Unsub(topic string, ch chan interface{}) {
-	ps.unsub <- cmd{topic, ch}
+// topics.
+func (ps *PubSub) Unsub(ch chan interface{}, topics ...string) {
+	for _, topic := range topics {
+		ps.unsub <- cmd{topic, ch}
+	}
 }
 
 // Close closes all channels currently subscribed to the specified topics.
