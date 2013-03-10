@@ -22,8 +22,8 @@
 // all of them receive messages published on the topic.
 package pubsub
 
-// PubSubInternal is a collection of topics that exist only in the threads closed context
-type PubSubInternal struct {
+// internalSubscriptions is a collection of topics that exist only in the threads closed context
+type internalSubscriptions struct {
 	topics                   map[string]map[chan interface{}]bool
 	revTopics                map[chan interface{}]map[string]bool
 }
@@ -43,12 +43,12 @@ type cmd struct {
 
 // New creates a new PubSub and starts a goroutine for handling operations.
 // The capacity of the channels created by Sub and SubOnce will be as specified.
-func newInternal() *PubSubInternal {
-	psi := new(PubSubInternal)
-	psi.topics = make(map[string]map[chan interface{}]bool)
-	psi.revTopics = make(map[chan interface{}]map[string]bool)
+func newInternalSubscription() *internalSubscriptions {
+	is := new(internalSubscriptions)
+	is.topics = make(map[string]map[chan interface{}]bool)
+	is.revTopics = make(map[chan interface{}]map[string]bool)
 
-	return psi
+	return is
 }
 
 // New creates a new PubSub and starts a goroutine for handling operations.
@@ -120,85 +120,85 @@ func (ps *PubSub) Shutdown() {
 }
 
 func (ps *PubSub) start() {
-    psi := newInternal()
+    is := newInternalSubscription()
 
 loop:
 	for {
 		select {
 		case cmd := <-ps.sub:
-			psi.add(cmd.topic, cmd.data.(chan interface{}), false)
+			is.add(cmd.topic, cmd.data.(chan interface{}), false)
 
 		case cmd := <-ps.subOnce:
-			psi.add(cmd.topic, cmd.data.(chan interface{}), true)
+			is.add(cmd.topic, cmd.data.(chan interface{}), true)
 
 		case cmd := <-ps.pub:
-			psi.send(cmd.topic, cmd.data.(interface{}))
+			is.send(cmd.topic, cmd.data.(interface{}))
 
 		case cmd := <-ps.unsub:
-			psi.remove(cmd.topic, cmd.data.(chan interface{}))
+			is.remove(cmd.topic, cmd.data.(chan interface{}))
 
 		case topic := <-ps.close:
-			psi.removeTopic(topic)
+			is.removeTopic(topic)
 
 		case <-ps.shutdown:
 			break loop
 		}
 	}
 
-	for topic, chans := range psi.topics {
+	for topic, chans := range is.topics {
 		for ch, _ := range chans {
-			psi.remove(topic, ch)
+			is.remove(topic, ch)
 		}
 	}
 }
 
-func (psi *PubSubInternal) add(topic string, ch chan interface{}, once bool) {
-	if psi.topics[topic] == nil {
-		psi.topics[topic] = make(map[chan interface{}]bool)
+func (is *internalSubscriptions) add(topic string, ch chan interface{}, once bool) {
+	if is.topics[topic] == nil {
+		is.topics[topic] = make(map[chan interface{}]bool)
 	}
-	psi.topics[topic][ch] = once
+	is.topics[topic][ch] = once
 
-	if psi.revTopics[ch] == nil {
-		psi.revTopics[ch] = make(map[string]bool)
+	if is.revTopics[ch] == nil {
+		is.revTopics[ch] = make(map[string]bool)
 	}
-	psi.revTopics[ch][topic] = true
+	is.revTopics[ch][topic] = true
 }
 
-func (psi *PubSubInternal) send(topic string, msg interface{}) {
-	for ch, once := range psi.topics[topic] {
+func (is *internalSubscriptions) send(topic string, msg interface{}) {
+	for ch, once := range is.topics[topic] {
 		ch <- msg
 		if once {
-			for topic := range psi.revTopics[ch] {
-				psi.remove(topic, ch)
+			for topic := range is.revTopics[ch] {
+				is.remove(topic, ch)
 			}
 		}
 	}
 }
 
-func (psi *PubSubInternal) removeTopic(topic string) {
-	for ch := range psi.topics[topic] {
-		psi.remove(topic, ch)
+func (is *internalSubscriptions) removeTopic(topic string) {
+	for ch := range is.topics[topic] {
+		is.remove(topic, ch)
 	}
 }
 
-func (psi *PubSubInternal) remove(topic string, ch chan interface{}) {
-	if _, ok := psi.topics[topic]; !ok {
+func (is *internalSubscriptions) remove(topic string, ch chan interface{}) {
+	if _, ok := is.topics[topic]; !ok {
 		return
 	}
 
-	if _, ok := psi.topics[topic][ch]; !ok {
+	if _, ok := is.topics[topic][ch]; !ok {
 		return
 	}
 
-	delete(psi.topics[topic], ch)
-	delete(psi.revTopics[ch], topic)
+	delete(is.topics[topic], ch)
+	delete(is.revTopics[ch], topic)
 
-	if len(psi.topics[topic]) == 0 {
-		delete(psi.topics, topic)
+	if len(is.topics[topic]) == 0 {
+		delete(is.topics, topic)
 	}
 
-	if len(psi.revTopics[ch]) == 0 {
+	if len(is.revTopics[ch]) == 0 {
 		close(ch)
-		delete(psi.revTopics, ch)
+		delete(is.revTopics, ch)
 	}
 }
