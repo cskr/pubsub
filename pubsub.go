@@ -81,6 +81,13 @@ func (ps *PubSub) SubOnce(topics ...string) chan interface{} {
 	return ps.doSub(ps.subOnce, topics...)
 }
 
+// SubUpdate adds subscriptions to an existing channel.
+func (ps *PubSub) SubUpdate(ch chan interface{}, topics ...string) {
+	for _, topic := range topics {
+		ps.sub <- cmd{topic, ch}
+	}
+}
+
 func (ps *PubSub) doSub(cmdChan chan cmd, topics ...string) chan interface{} {
 	ch := make(chan interface{}, ps.capacity)
 	for _, topic := range topics {
