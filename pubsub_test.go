@@ -88,6 +88,27 @@ func (s *Suite) TestUnsub(c *check.C) {
 	ps.Shutdown()
 }
 
+func (s *Suite) TestUnsubAll(c *check.C) {
+	ps := New(1)
+	ch1 := ps.Sub("t1", "t2", "t3")
+	ch2 := ps.Sub("t1", "t3")
+
+    ps.UnsubAll(ch1)
+
+    m, ok := <-ch1
+	c.Check(ok, check.Equals, false)
+
+	ps.Pub("hi", "t1")
+	m, ok = <-ch2
+	c.Check(m, check.Equals, "hi")
+
+    ps.UnsubAll(ch2)
+    _, ok = <-ch2
+	c.Check(ok, check.Equals, false)
+
+	ps.Shutdown()
+}
+
 func (s *Suite) TestClose(c *check.C) {
 	ps := New(1)
 	ch1 := ps.Sub("t1")
