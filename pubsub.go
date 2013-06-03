@@ -30,10 +30,10 @@ type internalSubscriptions struct {
 
 // PubSub is a collection of channels to interface with PubSub start thread.
 type PubSub struct {
-	sub, subOnce, pub, unsub chan cmd
-	close                    chan string
-	shutdown                 chan bool
-	capacity                 int
+	sub, subOnce, pub, unsub, unsubAll chan cmd
+	close                              chan string
+	shutdown                           chan bool
+	capacity                           int
 }
 
 type cmd struct {
@@ -61,6 +61,7 @@ func New(capacity int) *PubSub {
 	ps.subOnce = make(chan cmd)
 	ps.pub = make(chan cmd)
 	ps.unsub = make(chan cmd)
+	ps.unsubAll = make(chan cmd)
 	ps.close = make(chan string)
 	ps.shutdown = make(chan bool)
 
@@ -79,6 +80,13 @@ func (ps *PubSub) Sub(topics ...string) chan interface{} {
 // on any of the specified topics can be received.
 func (ps *PubSub) SubOnce(topics ...string) chan interface{} {
 	return ps.doSub(ps.subOnce, topics...)
+}
+
+// SubUpdate adds subscriptions to an existing channel.
+func (ps *PubSub) SubUpdate(ch chan interface{}, topics ...string) {
+	for _, topic := range topics {
+		ps.sub <- cmd{topic, ch}
+	}
 }
 
 func (ps *PubSub) doSub(cmdChan chan cmd, topics ...string) chan interface{} {
@@ -103,6 +111,11 @@ func (ps *PubSub) Unsub(ch chan interface{}, topics ...string) {
 	for _, topic := range topics {
 		ps.unsub <- cmd{topic, ch}
 	}
+}
+
+// UnsubAll unsubscribes the given channel from all topics
+func (ps *PubSub) UnsubAll(ch chan interface{}) {
+    ps.unsubAll <- cmd{"", ch}
 }
 
 // Close closes all channels currently subscribed to the specified topics.
@@ -136,6 +149,9 @@ loop:
 
 		case cmd := <-ps.unsub:
 			is.remove(cmd.topic, cmd.data.(chan interface{}))
+
+		case cmd := <-ps.unsubAll:
+			is.removeChannel(cmd.data.(chan interface{}))
 
 		case topic := <-ps.close:
 			is.removeTopic(topic)
@@ -179,6 +195,12 @@ func (is *internalSubscriptions) removeTopic(topic string) {
 	for ch := range is.topics[topic] {
 		is.remove(topic, ch)
 	}
+}
+
+func (is *internalSubscriptions) removeChannel(ch chan interface{}) {
+    for topic, _ := range is.revTopics[ch] {
+        is.remove(topic, ch)
+    }
 }
 
 func (is *internalSubscriptions) remove(topic string, ch chan interface{}) {

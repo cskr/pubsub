@@ -49,6 +49,32 @@ func (s *Suite) TestSubOnce(c *check.C) {
 	ps.Shutdown()
 }
 
+func (s *Suite) TestSubUpdate(c *check.C){
+	ps := New(1)
+	ch1 := ps.Sub("t1")
+	ch2 := ps.Sub("t2")
+
+	ps.Pub("hi1", "t1")
+	c.Check(<-ch1, check.Equals, "hi1")
+
+	ps.Pub("hi2", "t2")
+	c.Check(<-ch2, check.Equals, "hi2")
+
+    ps.SubUpdate(ch1, "t2", "t3")
+	ps.Pub("hi3", "t2")
+	c.Check(<-ch1, check.Equals, "hi3")
+	c.Check(<-ch2, check.Equals, "hi3")
+
+	ps.Pub("hi4", "t3")
+	c.Check(<-ch1, check.Equals, "hi4")
+
+	ps.Shutdown()
+	_, ok := <-ch1
+	c.Check(ok, check.Equals, false)
+	_, ok = <-ch2
+	c.Check(ok, check.Equals, false)
+}
+
 func (s *Suite) TestUnsub(c *check.C) {
 	ps := New(1)
 	ch := ps.Sub("t1")
@@ -59,6 +85,27 @@ func (s *Suite) TestUnsub(c *check.C) {
 	ps.Unsub(ch, "t1")
 	_, ok := <-ch
 	c.Check(ok, check.Equals, false)
+	ps.Shutdown()
+}
+
+func (s *Suite) TestUnsubAll(c *check.C) {
+	ps := New(1)
+	ch1 := ps.Sub("t1", "t2", "t3")
+	ch2 := ps.Sub("t1", "t3")
+
+    ps.UnsubAll(ch1)
+
+    m, ok := <-ch1
+	c.Check(ok, check.Equals, false)
+
+	ps.Pub("hi", "t1")
+	m, ok = <-ch2
+	c.Check(m, check.Equals, "hi")
+
+    ps.UnsubAll(ch2)
+    _, ok = <-ch2
+	c.Check(ok, check.Equals, false)
+
 	ps.Shutdown()
 }
 
