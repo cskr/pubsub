@@ -22,71 +22,71 @@
 // all of them receive messages published on the topic.
 package pubsub
 
+type operation int
+
+const (
+	sub operation = iota
+	subOnce
+	pub
+	unsub
+	unsubAll
+	closeTopic
+	shutdown
+)
+
 // PubSub is a collection of topics.
 type PubSub struct {
-	sub, subOnce, pub, unsub chan cmd
-	unsubAll                 chan chan interface{}
-	close                    chan string
-	shutdown                 chan bool
-	capacity                 int
+	cmdChan  chan cmd
+	capacity int
 }
 
 type cmd struct {
+	op    operation
 	topic string
-	data  interface{}
+	ch    chan interface{}
+	msg   interface{}
 }
 
 // New creates a new PubSub and starts a goroutine for handling operations.
 // The capacity of the channels created by Sub and SubOnce will be as specified.
 func New(capacity int) *PubSub {
-	ps := new(PubSub)
-	ps.capacity = capacity
-
-	ps.sub = make(chan cmd)
-	ps.subOnce = make(chan cmd)
-	ps.pub = make(chan cmd)
-	ps.unsub = make(chan cmd)
-	ps.unsubAll = make(chan chan interface{})
-	ps.close = make(chan string)
-	ps.shutdown = make(chan bool)
-
+	ps := &PubSub{make(chan cmd), capacity}
 	go ps.start()
-
 	return ps
 }
 
 // Sub returns a channel on which messages published on any of
 // the specified topics can be received.
 func (ps *PubSub) Sub(topics ...string) chan interface{} {
-	return ps.doSub(ps.sub, topics...)
+	return ps.doSub(sub, topics...)
 }
 
 // SubOnce is similar to Sub, but only the first message published, after subscription,
 // on any of the specified topics can be received.
 func (ps *PubSub) SubOnce(topics ...string) chan interface{} {
-	return ps.doSub(ps.subOnce, topics...)
+	return ps.doSub(subOnce, topics...)
+}
+
+func (ps *PubSub) doSub(op operation, topics ...string) chan interface{} {
+	ch := make(chan interface{}, ps.capacity)
+	for _, topic := range topics {
+		ps.cmdChan <- cmd{op: op, topic: topic, ch: ch}
+	}
+	return ch
 }
 
 // AddSub adds subscriptions to an existing channel.
 func (ps *PubSub) AddSub(ch chan interface{}, topics ...string) {
 	for _, topic := range topics {
-		ps.sub <- cmd{topic, ch}
+		ps.cmdChan <- cmd{op: sub, topic: topic, ch: ch}
 	}
-}
-
-func (ps *PubSub) doSub(cmdChan chan cmd, topics ...string) chan interface{} {
-	ch := make(chan interface{}, ps.capacity)
-	for _, topic := range topics {
-		cmdChan <- cmd{topic, ch}
-	}
-	return ch
 }
 
 // Pub publishes the given message to all subscribers of
 // the specified topics.
 func (ps *PubSub) Pub(msg interface{}, topics ...string) {
 	for _, topic := range topics {
-		ps.pub <- cmd{topic, msg}
+		ps.cmdChan <- cmd{op: pub, topic: topic, msg: msg}
 	}
 }
 
@@ -95,12 +95,12 @@ func (ps *PubSub) Pub(msg interface{}, topics ...string) {
 // from all topics.
 func (ps *PubSub) Unsub(ch chan interface{}, topics ...string) {
 	if len(topics) == 0 {
-		ps.unsubAll <- ch
+		ps.cmdChan <- cmd{op: unsubAll, ch: ch}
 		return
 	}
 
 	for _, topic := range topics {
-		ps.unsub <- cmd{topic, ch}
+		ps.cmdChan <- cmd{op: unsub, topic: topic, ch: ch}
 	}
 }
 
@@ -109,20 +109,13 @@ func (ps *PubSub) Unsub(ch chan interface{}, topics ...string) {
 // not specified, it is not closed.
 func (ps *PubSub) Close(topics ...string) {
 	for _, topic := range topics {
-		ps.close <- topic
+		ps.cmdChan <- cmd{op: closeTopic, topic: topic}
 	}
 }
 
 // Shutdown closes all subscribed channels and terminates the goroutine.
 func (ps *PubSub) Shutdown() {
-	ps.shutdown <- true
-}
-
-// registry maintains the current subscription state. It's not
-// safe to access a registry from multiple goroutines simultaneously.
-type registry struct {
-	topics    map[string]map[chan interface{}]bool
-	revTopics map[chan interface{}]map[string]bool
+	ps.cmdChan <- cmd{op: shutdown}
 }
 
 func (ps *PubSub) start() {
@@ -132,27 +125,27 @@ func (ps *PubSub) start() {
 	}
 
 loop:
-	for {
-		select {
-		case cmd := <-ps.sub:
-			reg.add(cmd.topic, cmd.data.(chan interface{}), false)
+	for cmd := range ps.cmdChan {
+		switch cmd.op {
+		case sub:
+			reg.add(cmd.topic, cmd.ch, false)
 
-		case cmd := <-ps.subOnce:
-			reg.add(cmd.topic, cmd.data.(chan interface{}), true)
+		case subOnce:
+			reg.add(cmd.topic, cmd.ch, true)
 
-		case cmd := <-ps.pub:
-			reg.send(cmd.topic, cmd.data.(interface{}))
+		case pub:
+			reg.send(cmd.topic, cmd.msg)
 
-		case cmd := <-ps.unsub:
-			reg.remove(cmd.topic, cmd.data.(chan interface{}))
+		case unsub:
+			reg.remove(cmd.topic, cmd.ch)
 
-		case ch := <-ps.unsubAll:
-			reg.removeChannel(ch)
+		case unsubAll:
+			reg.removeChannel(cmd.ch)
 
-		case topic := <-ps.close:
-			reg.removeTopic(topic)
+		case closeTopic:
+			reg.removeTopic(cmd.topic)
 
-		case <-ps.shutdown:
+		case shutdown:
 			break loop
 		}
 	}
@@ -162,6 +155,13 @@ loop:
 			reg.remove(topic, ch)
 		}
 	}
+}
+
+// registry maintains the current subscription state. It's not
+// safe to access a registry from multiple goroutines simultaneously.
+type registry struct {
+	topics    map[string]map[chan interface{}]bool
+	revTopics map[chan interface{}]map[string]bool
 }
 
 func (reg *registry) add(topic string, ch chan interface{}, once bool) {
