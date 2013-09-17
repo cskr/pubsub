@@ -22,12 +22,6 @@
 // all of them receive messages published on the topic.
 package pubsub
 
-// internalSubscriptions is a collection of topics that exist only in the threads closed context
-type internalSubscriptions struct {
-	topics    map[string]map[chan interface{}]bool
-	revTopics map[chan interface{}]map[string]bool
-}
-
 // PubSub is a collection of topics.
 type PubSub struct {
 	sub, subOnce, pub, unsub chan cmd
@@ -40,16 +34,6 @@ type PubSub struct {
 type cmd struct {
 	topic string
 	data  interface{}
-}
-
-// New creates a new PubSub and starts a goroutine for handling operations.
-// The capacity of the channels created by Sub and SubOnce will be as specified.
-func newInternalSubscription() *internalSubscriptions {
-	is := new(internalSubscriptions)
-	is.topics = make(map[string]map[chan interface{}]bool)
-	is.revTopics = make(map[chan interface{}]map[string]bool)
-
-	return is
 }
 
 // New creates a new PubSub and starts a goroutine for handling operations.
@@ -134,95 +118,105 @@ func (ps *PubSub) Shutdown() {
 	ps.shutdown <- true
 }
 
+// registry maintains the current subscription state. It's not
+// safe to access a registry from multiple goroutines simultaneously.
+type registry struct {
+	topics    map[string]map[chan interface{}]bool
+	revTopics map[chan interface{}]map[string]bool
+}
+
 func (ps *PubSub) start() {
-	is := newInternalSubscription()
+	reg := registry{
+		topics:    make(map[string]map[chan interface{}]bool),
+		revTopics: make(map[chan interface{}]map[string]bool),
+	}
 
 loop:
 	for {
 		select {
 		case cmd := <-ps.sub:
-			is.add(cmd.topic, cmd.data.(chan interface{}), false)
+			reg.add(cmd.topic, cmd.data.(chan interface{}), false)
 
 		case cmd := <-ps.subOnce:
-			is.add(cmd.topic, cmd.data.(chan interface{}), true)
+			reg.add(cmd.topic, cmd.data.(chan interface{}), true)
 
 		case cmd := <-ps.pub:
-			is.send(cmd.topic, cmd.data.(interface{}))
+			reg.send(cmd.topic, cmd.data.(interface{}))
 
 		case cmd := <-ps.unsub:
-			is.remove(cmd.topic, cmd.data.(chan interface{}))
+			reg.remove(cmd.topic, cmd.data.(chan interface{}))
 
 		case ch := <-ps.unsubAll:
-			is.removeChannel(ch)
+			reg.removeChannel(ch)
 
 		case topic := <-ps.close:
-			is.removeTopic(topic)
+			reg.removeTopic(topic)
 
 		case <-ps.shutdown:
 			break loop
 		}
 	}
 
-	for topic, chans := range is.topics {
+	for topic, chans := range reg.topics {
 		for ch, _ := range chans {
-			is.remove(topic, ch)
+			reg.remove(topic, ch)
 		}
 	}
 }
 
-func (is *internalSubscriptions) add(topic string, ch chan interface{}, once bool) {
-	if is.topics[topic] == nil {
-		is.topics[topic] = make(map[chan interface{}]bool)
+func (reg *registry) add(topic string, ch chan interface{}, once bool) {
+	if reg.topics[topic] == nil {
+		reg.topics[topic] = make(map[chan interface{}]bool)
 	}
-	is.topics[topic][ch] = once
+	reg.topics[topic][ch] = once
 
-	if is.revTopics[ch] == nil {
-		is.revTopics[ch] = make(map[string]bool)
+	if reg.revTopics[ch] == nil {
+		reg.revTopics[ch] = make(map[string]bool)
 	}
-	is.revTopics[ch][topic] = true
+	reg.revTopics[ch][topic] = true
 }
 
-func (is *internalSubscriptions) send(topic string, msg interface{}) {
-	for ch, once := range is.topics[topic] {
+func (reg *registry) send(topic string, msg interface{}) {
+	for ch, once := range reg.topics[topic] {
 		ch <- msg
 		if once {
-			for topic := range is.revTopics[ch] {
-				is.remove(topic, ch)
+			for topic := range reg.revTopics[ch] {
+				reg.remove(topic, ch)
 			}
 		}
 	}
 }
 
-func (is *internalSubscriptions) removeTopic(topic string) {
-	for ch := range is.topics[topic] {
-		is.remove(topic, ch)
+func (reg *registry) removeTopic(topic string) {
+	for ch := range reg.topics[topic] {
+		reg.remove(topic, ch)
 	}
 }
 
-func (is *internalSubscriptions) removeChannel(ch chan interface{}) {
-	for topic := range is.revTopics[ch] {
-		is.remove(topic, ch)
+func (reg *registry) removeChannel(ch chan interface{}) {
+	for topic := range reg.revTopics[ch] {
+		reg.remove(topic, ch)
 	}
 }
 
-func (is *internalSubscriptions) remove(topic string, ch chan interface{}) {
-	if _, ok := is.topics[topic]; !ok {
+func (reg *registry) remove(topic string, ch chan interface{}) {
+	if _, ok := reg.topics[topic]; !ok {
 		return
 	}
 
-	if _, ok := is.topics[topic][ch]; !ok {
+	if _, ok := reg.topics[topic][ch]; !ok {
 		return
 	}
 
-	delete(is.topics[topic], ch)
-	delete(is.revTopics[ch], topic)
+	delete(reg.topics[topic], ch)
+	delete(reg.revTopics[ch], topic)
 
-	if len(is.topics[topic]) == 0 {
-		delete(is.topics, topic)
+	if len(reg.topics[topic]) == 0 {
+		delete(reg.topics, topic)
 	}
 
-	if len(is.revTopics[ch]) == 0 {
+	if len(reg.revTopics[ch]) == 0 {
 		close(ch)
-		delete(is.revTopics, ch)
+		delete(reg.revTopics, ch)
 	}
 }
