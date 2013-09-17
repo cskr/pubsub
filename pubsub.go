@@ -24,16 +24,17 @@ package pubsub
 
 // internalSubscriptions is a collection of topics that exist only in the threads closed context
 type internalSubscriptions struct {
-	topics                   map[string]map[chan interface{}]bool
-	revTopics                map[chan interface{}]map[string]bool
+	topics    map[string]map[chan interface{}]bool
+	revTopics map[chan interface{}]map[string]bool
 }
 
-// PubSub is a collection of channels to interface with PubSub start thread.
+// PubSub is a collection of topics.
 type PubSub struct {
-	sub, subOnce, pub, unsub, unsubAll chan cmd
-	close                              chan string
-	shutdown                           chan bool
-	capacity                           int
+	sub, subOnce, pub, unsub chan cmd
+	unsubAll                 chan chan interface{}
+	close                    chan string
+	shutdown                 chan bool
+	capacity                 int
 }
 
 type cmd struct {
@@ -61,7 +62,7 @@ func New(capacity int) *PubSub {
 	ps.subOnce = make(chan cmd)
 	ps.pub = make(chan cmd)
 	ps.unsub = make(chan cmd)
-	ps.unsubAll = make(chan cmd)
+	ps.unsubAll = make(chan chan interface{})
 	ps.close = make(chan string)
 	ps.shutdown = make(chan bool)
 
@@ -106,16 +107,17 @@ func (ps *PubSub) Pub(msg interface{}, topics ...string) {
 }
 
 // Unsub unsubscribes the given channel from the specified
-// topics.
+// topics. If no topic is specified, it is unsubscribed
+// from all topics.
 func (ps *PubSub) Unsub(ch chan interface{}, topics ...string) {
+	if len(topics) == 0 {
+		ps.unsubAll <- ch
+		return
+	}
+
 	for _, topic := range topics {
 		ps.unsub <- cmd{topic, ch}
 	}
-}
-
-// UnsubAll unsubscribes the given channel from all topics
-func (ps *PubSub) UnsubAll(ch chan interface{}) {
-    ps.unsubAll <- cmd{"", ch}
 }
 
 // Close closes all channels currently subscribed to the specified topics.
@@ -133,7 +135,7 @@ func (ps *PubSub) Shutdown() {
 }
 
 func (ps *PubSub) start() {
-    is := newInternalSubscription()
+	is := newInternalSubscription()
 
 loop:
 	for {
@@ -150,8 +152,8 @@ loop:
 		case cmd := <-ps.unsub:
 			is.remove(cmd.topic, cmd.data.(chan interface{}))
 
-		case cmd := <-ps.unsubAll:
-			is.removeChannel(cmd.data.(chan interface{}))
+		case ch := <-ps.unsubAll:
+			is.removeChannel(ch)
 
 		case topic := <-ps.close:
 			is.removeTopic(topic)
@@ -198,9 +200,9 @@ func (is *internalSubscriptions) removeTopic(topic string) {
 }
 
 func (is *internalSubscriptions) removeChannel(ch chan interface{}) {
-    for topic, _ := range is.revTopics[ch] {
-        is.remove(topic, ch)
-    }
+	for topic := range is.revTopics[ch] {
+		is.remove(topic, ch)
+	}
 }
 
 func (is *internalSubscriptions) remove(topic string, ch chan interface{}) {
