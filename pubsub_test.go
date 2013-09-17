@@ -49,7 +49,7 @@ func (s *Suite) TestSubOnce(c *check.C) {
 	ps.Shutdown()
 }
 
-func (s *Suite) TestSubUpdate(c *check.C) {
+func (s *Suite) TestAddSub(c *check.C) {
 	ps := New(1)
 	ch1 := ps.Sub("t1")
 	ch2 := ps.Sub("t2")
@@ -60,7 +60,7 @@ func (s *Suite) TestSubUpdate(c *check.C) {
 	ps.Pub("hi2", "t2")
 	c.Check(<-ch2, check.Equals, "hi2")
 
-	ps.SubUpdate(ch1, "t2", "t3")
+	ps.AddSub(ch1, "t2", "t3")
 	ps.Pub("hi3", "t2")
 	c.Check(<-ch1, check.Equals, "hi3")
 	c.Check(<-ch2, check.Equals, "hi3")
@@ -69,10 +69,6 @@ func (s *Suite) TestSubUpdate(c *check.C) {
 	c.Check(<-ch1, check.Equals, "hi4")
 
 	ps.Shutdown()
-	_, ok := <-ch1
-	c.Check(ok, check.Equals, false)
-	_, ok = <-ch2
-	c.Check(ok, check.Equals, false)
 }
 
 func (s *Suite) TestUnsub(c *check.C) {
