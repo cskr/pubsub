@@ -8,7 +8,7 @@ View the [API Documentation](http://gopkgdoc.appspot.com/pkg/github.com/tuxychan
 
 ## License
 
-Copyright (c) 2013, Chandra Sekar S
+Copyright (c) 2013, Chandra Sekar S  
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
