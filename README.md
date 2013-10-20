@@ -2,9 +2,7 @@ Install pubsub with,
 
     go get github.com/tuxychandru/pubsub
 
-View the [API Documentation](http://gopkgdoc.appspot.com/pkg/github.com/tuxychandru/pubsub).
-
-[![Build Status](http://goci.me/project/image/github.com/tuxychandru/pubsub)](http://goci.me/project/github.com/tuxychandru/pusub)
+View the [API Documentation](http://godoc.org/github.com/tuxychandru/pubsub).
 
 ## License
 
