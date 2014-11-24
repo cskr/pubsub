@@ -145,6 +145,18 @@ func TestMultiSubOnce(t *testing.T) {
 	checkContents(t, ch, []string{"hi"})
 }
 
+func TestMultiSubOnceEach(t *testing.T) {
+	ps := New(2)
+	ch := ps.SubOnceEach("t1", "t2")
+
+	ps.Pub("hi", "t1")
+	ps.Pub("hi", "t1")
+	ps.Pub("hello", "t2")
+	ps.Shutdown()
+
+	checkContents(t, ch, []string{"hi", "hello"})
+}
+
 func TestMultiPub(t *testing.T) {
 	ps := New(2)
 	ch1 := ps.Sub("t1")
