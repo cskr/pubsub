@@ -5,7 +5,7 @@
 package pubsub
 
 import (
-	check "launchpad.net/gocheck"
+	check "gopkg.in/check.v1"
 	"runtime"
 	"testing"
 	"time"
