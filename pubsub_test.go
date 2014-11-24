@@ -181,6 +181,23 @@ func (s *Suite) TestMultiSubOnce(c *check.C) {
 	ps.Shutdown()
 }
 
+func (s *Suite) TestMultiSubOnceEach(c *check.C) {
+	ps := New(1)
+	ch := ps.SubOnceEach("t1", "t2")
+
+	ps.Pub("hi", "t1")
+	c.Check(<-ch, check.Equals, "hi")
+
+	ps.Pub("hi!", "t1") // ignored
+
+	ps.Pub("hello", "t2")
+	c.Check(<-ch, check.Equals, "hello")
+
+	_, ok := <-ch
+	c.Check(ok, check.Equals, false)
+	ps.Shutdown()
+}
+
 func (s *Suite) TestMultiPub(c *check.C) {
 	ps := New(1)
 	ch1 := ps.Sub("t1")
