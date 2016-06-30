@@ -5,10 +5,11 @@
 package pubsub
 
 import (
-	check "launchpad.net/gocheck"
 	"runtime"
 	"testing"
 	"time"
+
+	check "launchpad.net/gocheck"
 )
 
 var _ = check.Suite(new(Suite))
@@ -149,7 +150,7 @@ func (s *Suite) TestShutdown(c *check.C) {
 	start := runtime.NumGoroutine()
 	New(10).Shutdown()
 	time.Sleep(1)
-	c.Check(runtime.NumGoroutine()-start, check.Equals, 1)
+	c.Check(runtime.NumGoroutine(), check.Equals, start)
 }
 
 func (s *Suite) TestMultiSub(c *check.C) {
