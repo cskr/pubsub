@@ -1,8 +1,8 @@
 Install pubsub with,
 
-    go get github.com/tuxychandru/pubsub
+    go get github.com/cskr/pubsub
 
-View the [API Documentation](http://godoc.org/github.com/tuxychandru/pubsub).
+View the [API Documentation](http://godoc.org/github.com/cskr/pubsub).
 
 ## License
 
