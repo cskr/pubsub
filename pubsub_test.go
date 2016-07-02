@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	check "launchpad.net/gocheck"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(new(Suite))
