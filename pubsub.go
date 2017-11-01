@@ -72,6 +72,19 @@ func (ps *PubSub) Pub(msg interface{}, topics ...string) {
 	ps.cmdChan <- cmd{op: pub, topics: topics, msg: msg}
 }
 
+// TryPub publishes the given message to all subscribers of
+// the specified topics if the topic has buffer space.
+// Returns true on success.
+func (ps *PubSub) TryPub(msg interface{}, topics ...string) bool {
+
+	select {
+	case ps.cmdChan <- cmd{op: pub, topics: topics, msg: msg}:
+		return true
+	default:
+		return false
+	}
+}
+
 // Unsub unsubscribes the given channel from the specified
 // topics. If no topic is specified, it is unsubscribed
 // from all topics.
