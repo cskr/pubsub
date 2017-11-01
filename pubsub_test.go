@@ -194,6 +194,25 @@ func (s *Suite) TestMultiPub(c *check.C) {
 	ps.Shutdown()
 }
 
+func (s *Suite) TestTryPub(c *check.C) {
+	ps := New(1)
+	ch := ps.Sub("t1")
+
+	ps.TryPub("hi", "t1")
+	ps.TryPub("there", "t1")
+
+	<-ch
+	extraMsg := false
+	select {
+	case <-ch:
+		extraMsg = true
+	default:
+	}
+	c.Check(extraMsg, check.Equals, false)
+
+	ps.Shutdown()
+}
+
 func (s *Suite) TestMultiUnsub(c *check.C) {
 	ps := New(1)
 	ch := ps.Sub("t1", "t2", "t3")
