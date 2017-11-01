@@ -16,6 +16,7 @@ const (
 	sub operation = iota
 	subOnce
 	pub
+	tryPub
 	unsub
 	unsubAll
 	closeTopic
@@ -72,6 +73,12 @@ func (ps *PubSub) Pub(msg interface{}, topics ...string) {
 	ps.cmdChan <- cmd{op: pub, topics: topics, msg: msg}
 }
 
+// TryPub publishes the given message to all subscribers of
+// the specified topics if the topic has buffer space.
+func (ps *PubSub) TryPub(msg interface{}, topics ...string) {
+	ps.cmdChan <- cmd{op: tryPub, topics: topics, msg: msg}
+}
+
 // Unsub unsubscribes the given channel from the specified
 // topics. If no topic is specified, it is unsubscribed
 // from all topics.
@@ -124,6 +131,9 @@ loop:
 			case subOnce:
 				reg.add(topic, cmd.ch, true)
 
+			case tryPub:
+				reg.sendNoWait(topic, cmd.msg)
+
 			case pub:
 				reg.send(topic, cmd.msg)
 
@@ -170,6 +180,21 @@ func (reg *registry) send(topic string, msg interface{}) {
 				reg.remove(topic, ch)
 			}
 		}
+	}
+}
+
+func (reg *registry) sendNoWait(topic string, msg interface{}) {
+	for ch, once := range reg.topics[topic] {
+		select {
+		case ch <- msg:
+			if once {
+				for topic := range reg.revTopics[ch] {
+					reg.remove(topic, ch)
+				}
+			}
+		default:
+		}
+
 	}
 }
 
