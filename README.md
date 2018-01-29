@@ -1,8 +1,10 @@
+[![GoDoc](https://godoc.org/github.com/cskr/pubsub?status.svg)](https://godoc.org/github.com/cskr/pubsub)
+
+Package pubsub implements a simple multi-topic pub-sub library. 
+
 Install pubsub with,
 
     go get github.com/cskr/pubsub
-
-View the [API Documentation](http://godoc.org/github.com/cskr/pubsub).
 
 ## License
 
