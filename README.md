@@ -6,6 +6,9 @@ Install pubsub with,
 
     go get github.com/cskr/pubsub
 
+This repository contains tagged releases. Please use a dependency manager like
+[dep](https://golang.github.io/dep/) to pin a version for production use.
+
 ## License
 
 Copyright (c) 2013, Chandra Sekar S  
