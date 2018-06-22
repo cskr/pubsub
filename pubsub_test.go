@@ -5,108 +5,82 @@
 package pubsub
 
 import (
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
-
-	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(new(Suite))
-
-func Test(t *testing.T) {
-	check.TestingT(t)
-}
-
-type Suite struct{}
-
-func (s *Suite) TestSub(c *check.C) {
+func TestSub(t *testing.T) {
 	ps := New(1)
 	ch1 := ps.Sub("t1")
 	ch2 := ps.Sub("t1")
 	ch3 := ps.Sub("t2")
 
 	ps.Pub("hi", "t1")
-	c.Check(<-ch1, check.Equals, "hi")
-	c.Check(<-ch2, check.Equals, "hi")
-
 	ps.Pub("hello", "t2")
-	c.Check(<-ch3, check.Equals, "hello")
 
 	ps.Shutdown()
-	_, ok := <-ch1
-	c.Check(ok, check.Equals, false)
-	_, ok = <-ch2
-	c.Check(ok, check.Equals, false)
-	_, ok = <-ch3
-	c.Check(ok, check.Equals, false)
+
+	checkContents(t, ch1, []string{"hi"})
+	checkContents(t, ch2, []string{"hi"})
+	checkContents(t, ch3, []string{"hello"})
 }
 
-func (s *Suite) TestSubOnce(c *check.C) {
+func TestSubOnce(t *testing.T) {
 	ps := New(1)
+	defer ps.Shutdown()
+
 	ch := ps.SubOnce("t1")
 
 	ps.Pub("hi", "t1")
-	c.Check(<-ch, check.Equals, "hi")
-
-	_, ok := <-ch
-	c.Check(ok, check.Equals, false)
-	ps.Shutdown()
+	checkContents(t, ch, []string{"hi"})
 }
 
-func (s *Suite) TestAddSub(c *check.C) {
-	ps := New(1)
+func TestAddSub(t *testing.T) {
+	ps := New(3)
 	ch1 := ps.Sub("t1")
 	ch2 := ps.Sub("t2")
 
 	ps.Pub("hi1", "t1")
-	c.Check(<-ch1, check.Equals, "hi1")
-
 	ps.Pub("hi2", "t2")
-	c.Check(<-ch2, check.Equals, "hi2")
 
 	ps.AddSub(ch1, "t2", "t3")
 	ps.Pub("hi3", "t2")
-	c.Check(<-ch1, check.Equals, "hi3")
-	c.Check(<-ch2, check.Equals, "hi3")
-
 	ps.Pub("hi4", "t3")
-	c.Check(<-ch1, check.Equals, "hi4")
 
 	ps.Shutdown()
+
+	checkContents(t, ch1, []string{"hi1", "hi3", "hi4"})
+	checkContents(t, ch2, []string{"hi2", "hi3"})
 }
 
-func (s *Suite) TestUnsub(c *check.C) {
+func TestUnsub(t *testing.T) {
 	ps := New(1)
+	defer ps.Shutdown()
+
 	ch := ps.Sub("t1")
 
 	ps.Pub("hi", "t1")
-	c.Check(<-ch, check.Equals, "hi")
-
 	ps.Unsub(ch, "t1")
-	_, ok := <-ch
-	c.Check(ok, check.Equals, false)
-	ps.Shutdown()
+	checkContents(t, ch, []string{"hi"})
 }
 
-func (s *Suite) TestUnsubAll(c *check.C) {
+func TestUnsubAll(t *testing.T) {
 	ps := New(1)
 	ch1 := ps.Sub("t1", "t2", "t3")
 	ch2 := ps.Sub("t1", "t3")
 
 	ps.Unsub(ch1)
-
-	m, ok := <-ch1
-	c.Check(ok, check.Equals, false)
+	checkContents(t, ch1, []string{})
 
 	ps.Pub("hi", "t1")
-	m, ok = <-ch2
-	c.Check(m, check.Equals, "hi")
-
 	ps.Shutdown()
+
+	checkContents(t, ch2, []string{"hi"})
 }
 
-func (s *Suite) TestClose(c *check.C) {
+func TestClose(t *testing.T) {
 	ps := New(1)
 	ch1 := ps.Sub("t1")
 	ch2 := ps.Sub("t1")
@@ -115,25 +89,19 @@ func (s *Suite) TestClose(c *check.C) {
 
 	ps.Pub("hi", "t1")
 	ps.Pub("hello", "t2")
-	c.Check(<-ch1, check.Equals, "hi")
-	c.Check(<-ch2, check.Equals, "hi")
-	c.Check(<-ch3, check.Equals, "hello")
-
 	ps.Close("t1", "t2")
-	_, ok := <-ch1
-	c.Check(ok, check.Equals, false)
-	_, ok = <-ch2
-	c.Check(ok, check.Equals, false)
-	_, ok = <-ch3
-	c.Check(ok, check.Equals, false)
+
+	checkContents(t, ch1, []string{"hi"})
+	checkContents(t, ch2, []string{"hi"})
+	checkContents(t, ch3, []string{"hello"})
 
 	ps.Pub("welcome", "t3")
-	c.Check(<-ch4, check.Equals, "welcome")
-
 	ps.Shutdown()
+
+	checkContents(t, ch4, []string{"welcome"})
 }
 
-func (s *Suite) TestUnsubAfterClose(c *check.C) {
+func TestUnsubAfterClose(t *testing.T) {
 	ps := New(1)
 	ch := ps.Sub("t1")
 	defer func() {
@@ -142,62 +110,58 @@ func (s *Suite) TestUnsubAfterClose(c *check.C) {
 	}()
 
 	ps.Close("t1")
-	_, ok := <-ch
-	c.Check(ok, check.Equals, false)
+	checkContents(t, ch, []string{})
 }
 
-func (s *Suite) TestShutdown(c *check.C) {
+func TestShutdown(t *testing.T) {
 	start := runtime.NumGoroutine()
 	New(10).Shutdown()
-	time.Sleep(1)
-	c.Check(runtime.NumGoroutine(), check.Equals, start)
+	time.Sleep(1 * time.Millisecond)
+	if current := runtime.NumGoroutine(); current != start {
+		t.Fatalf("Goroutine leak! Expected: %d, but there were: %d.", start, current)
+	}
 }
 
-func (s *Suite) TestMultiSub(c *check.C) {
-	ps := New(1)
+func TestMultiSub(t *testing.T) {
+	ps := New(2)
 	ch := ps.Sub("t1", "t2")
 
 	ps.Pub("hi", "t1")
-	c.Check(<-ch, check.Equals, "hi")
-
 	ps.Pub("hello", "t2")
-	c.Check(<-ch, check.Equals, "hello")
-
 	ps.Shutdown()
-	_, ok := <-ch
-	c.Check(ok, check.Equals, false)
+
+	checkContents(t, ch, []string{"hi", "hello"})
 }
 
-func (s *Suite) TestMultiSubOnce(c *check.C) {
+func TestMultiSubOnce(t *testing.T) {
 	ps := New(1)
+	defer ps.Shutdown()
+
 	ch := ps.SubOnce("t1", "t2")
 
 	ps.Pub("hi", "t1")
-	c.Check(<-ch, check.Equals, "hi")
-
 	ps.Pub("hello", "t2")
 
-	_, ok := <-ch
-	c.Check(ok, check.Equals, false)
-	ps.Shutdown()
+	checkContents(t, ch, []string{"hi"})
 }
 
-func (s *Suite) TestMultiPub(c *check.C) {
-	ps := New(1)
+func TestMultiPub(t *testing.T) {
+	ps := New(2)
 	ch1 := ps.Sub("t1")
 	ch2 := ps.Sub("t2")
 
 	ps.Pub("hi", "t1", "t2")
-	c.Check(<-ch1, check.Equals, "hi")
-	c.Check(<-ch2, check.Equals, "hi")
-
 	ps.Shutdown()
+
+	checkContents(t, ch1, []string{"hi"})
+	checkContents(t, ch2, []string{"hi"})
 }
 
-func (s *Suite) TestTryPub(c *check.C) {
+func TestTryPub(t *testing.T) {
 	ps := New(1)
-	ch := ps.Sub("t1")
+	defer ps.Shutdown()
 
+	ch := ps.Sub("t1")
 	ps.TryPub("hi", "t1")
 	ps.TryPub("there", "t1")
 
@@ -208,43 +172,48 @@ func (s *Suite) TestTryPub(c *check.C) {
 		extraMsg = true
 	default:
 	}
-	c.Check(extraMsg, check.Equals, false)
 
-	ps.Shutdown()
+	if extraMsg {
+		t.Fatal("Extra message was found in channel")
+	}
 }
 
-func (s *Suite) TestMultiUnsub(c *check.C) {
+func TestMultiUnsub(t *testing.T) {
 	ps := New(1)
+	defer ps.Shutdown()
+
 	ch := ps.Sub("t1", "t2", "t3")
 
 	ps.Unsub(ch, "t1")
-
 	ps.Pub("hi", "t1")
-
 	ps.Pub("hello", "t2")
-	c.Check(<-ch, check.Equals, "hello")
-
 	ps.Unsub(ch, "t2", "t3")
-	_, ok := <-ch
-	c.Check(ok, check.Equals, false)
 
-	ps.Shutdown()
+	checkContents(t, ch, []string{"hello"})
 }
 
-func (s *Suite) TestMultiClose(c *check.C) {
-	ps := New(1)
+func TestMultiClose(t *testing.T) {
+	ps := New(2)
+	defer ps.Shutdown()
+
 	ch := ps.Sub("t1", "t2")
 
 	ps.Pub("hi", "t1")
-	c.Check(<-ch, check.Equals, "hi")
-
 	ps.Close("t1")
+
 	ps.Pub("hello", "t2")
-	c.Check(<-ch, check.Equals, "hello")
-
 	ps.Close("t2")
-	_, ok := <-ch
-	c.Check(ok, check.Equals, false)
 
-	ps.Shutdown()
+	checkContents(t, ch, []string{"hi", "hello"})
+}
+
+func checkContents(t *testing.T, ch chan interface{}, vals []string) {
+	contents := []string{}
+	for v := range ch {
+		contents = append(contents, v.(string))
+	}
+
+	if !reflect.DeepEqual(contents, vals) {
+		t.Fatalf("Invalid channel contents. Expected: %v, but was: %v.", vals, contents)
+	}
 }
