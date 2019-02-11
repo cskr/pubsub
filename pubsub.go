@@ -118,7 +118,7 @@ func (ps *PubSub) Shutdown() {
 
 func (ps *PubSub) start() {
 	reg := registry{
-		topics:    make(map[string]map[chan interface{}]subtype),
+		topics:    make(map[string]map[chan interface{}]subType),
 		revTopics: make(map[chan interface{}]map[string]bool),
 	}
 
@@ -139,13 +139,13 @@ loop:
 		for _, topic := range cmd.topics {
 			switch cmd.op {
 			case sub:
-				reg.add(topic, cmd.ch, stNorm)
+				reg.add(topic, cmd.ch, normal)
 
 			case subOnce:
-				reg.add(topic, cmd.ch, stOnceAny)
+				reg.add(topic, cmd.ch, onceAny)
 
 			case subOnceEach:
-				reg.add(topic, cmd.ch, stOnceEach)
+				reg.add(topic, cmd.ch, onceEach)
 
 			case tryPub:
 				reg.sendNoWait(topic, cmd.msg)
@@ -172,21 +172,21 @@ loop:
 // registry maintains the current subscription state. It's not
 // safe to access a registry from multiple goroutines simultaneously.
 type registry struct {
-	topics    map[string]map[chan interface{}]subtype
+	topics    map[string]map[chan interface{}]subType
 	revTopics map[chan interface{}]map[string]bool
 }
 
-type subtype int
+type subType int
 
 const (
-	stOnceAny = iota
-	stOnceEach
-	stNorm
+	onceAny subType = iota
+	onceEach
+	normal
 )
 
-func (reg *registry) add(topic string, ch chan interface{}, st subtype) {
+func (reg *registry) add(topic string, ch chan interface{}, st subType) {
 	if reg.topics[topic] == nil {
-		reg.topics[topic] = make(map[chan interface{}]subtype)
+		reg.topics[topic] = make(map[chan interface{}]subType)
 	}
 	reg.topics[topic][ch] = st
 
@@ -200,11 +200,11 @@ func (reg *registry) send(topic string, msg interface{}) {
 	for ch, st := range reg.topics[topic] {
 		ch <- msg
 		switch st {
-		case stOnceAny:
+		case onceAny:
 			for topic := range reg.revTopics[ch] {
 				reg.remove(topic, ch)
 			}
-		case stOnceEach:
+		case onceEach:
 			reg.remove(topic, ch)
 		}
 	}
@@ -215,11 +215,11 @@ func (reg *registry) sendNoWait(topic string, msg interface{}) {
 		select {
 		case ch <- msg:
 			switch st {
-			case stOnceAny:
+			case onceAny:
 				for topic := range reg.revTopics[ch] {
 					reg.remove(topic, ch)
 				}
-			case stOnceEach:
+			case onceEach:
 				reg.remove(topic, ch)
 			}
 		default:
