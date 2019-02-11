@@ -95,6 +95,10 @@ func (ps *PubSub) TryPub(msg interface{}, topics ...string) {
 // Unsub unsubscribes the given channel from the specified
 // topics. If no topic is specified, it is unsubscribed
 // from all topics.
+//
+// Unsub must be called from a goroutine that is different from the subscriber.
+// The subscriber must consume messages from the channel until it reaches the
+// end. Not doing so can result in a deadlock.
 func (ps *PubSub) Unsub(ch chan interface{}, topics ...string) {
 	if len(topics) == 0 {
 		ps.cmdChan <- cmd{op: unsubAll, ch: ch}
