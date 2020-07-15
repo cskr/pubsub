@@ -1,4 +1,4 @@
-[![GoDoc](https://godoc.org/github.com/cskr/pubsub?status.svg)](https://godoc.org/github.com/cskr/pubsub)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/cskr/pubsub)](https://pkg.go.dev/github.com/cskr/pubsub)
 
 Package pubsub implements a simple multi-topic pub-sub library. 
 
