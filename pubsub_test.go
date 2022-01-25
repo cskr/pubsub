@@ -12,7 +12,7 @@ import (
 )
 
 func TestSub(t *testing.T) {
-	ps := New(1)
+	ps := New[string](1)
 	ch1 := ps.Sub("t1")
 	ch2 := ps.Sub("t1")
 	ch3 := ps.Sub("t2")
@@ -28,7 +28,7 @@ func TestSub(t *testing.T) {
 }
 
 func TestSubOnce(t *testing.T) {
-	ps := New(1)
+	ps := New[string](1)
 	defer ps.Shutdown()
 
 	ch := ps.SubOnce("t1")
@@ -38,7 +38,7 @@ func TestSubOnce(t *testing.T) {
 }
 
 func TestAddSub(t *testing.T) {
-	ps := New(3)
+	ps := New[string](3)
 	ch1 := ps.Sub("t1")
 	ch2 := ps.Sub("t2")
 
@@ -56,7 +56,7 @@ func TestAddSub(t *testing.T) {
 }
 
 func TestUnsub(t *testing.T) {
-	ps := New(1)
+	ps := New[string](1)
 	defer ps.Shutdown()
 
 	ch := ps.Sub("t1")
@@ -67,7 +67,7 @@ func TestUnsub(t *testing.T) {
 }
 
 func TestUnsubAll(t *testing.T) {
-	ps := New(1)
+	ps := New[string](1)
 	ch1 := ps.Sub("t1", "t2", "t3")
 	ch2 := ps.Sub("t1", "t3")
 
@@ -81,7 +81,7 @@ func TestUnsubAll(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	ps := New(1)
+	ps := New[string](1)
 	ch1 := ps.Sub("t1")
 	ch2 := ps.Sub("t1")
 	ch3 := ps.Sub("t2")
@@ -102,7 +102,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestUnsubAfterClose(t *testing.T) {
-	ps := New(1)
+	ps := New[string](1)
 	ch := ps.Sub("t1")
 	defer func() {
 		ps.Unsub(ch, "t1")
@@ -115,7 +115,7 @@ func TestUnsubAfterClose(t *testing.T) {
 
 func TestShutdown(t *testing.T) {
 	start := runtime.NumGoroutine()
-	New(10).Shutdown()
+	New[string](10).Shutdown()
 	time.Sleep(1 * time.Millisecond)
 	if current := runtime.NumGoroutine(); current != start {
 		t.Fatalf("Goroutine leak! Expected: %d, but there were: %d.", start, current)
@@ -123,7 +123,7 @@ func TestShutdown(t *testing.T) {
 }
 
 func TestMultiSub(t *testing.T) {
-	ps := New(2)
+	ps := New[string](2)
 	ch := ps.Sub("t1", "t2")
 
 	ps.Pub("hi", "t1")
@@ -134,7 +134,7 @@ func TestMultiSub(t *testing.T) {
 }
 
 func TestMultiSubOnce(t *testing.T) {
-	ps := New(1)
+	ps := New[string](1)
 	defer ps.Shutdown()
 
 	ch := ps.SubOnce("t1", "t2")
@@ -146,7 +146,7 @@ func TestMultiSubOnce(t *testing.T) {
 }
 
 func TestMultiSubOnceEach(t *testing.T) {
-	ps := New(2)
+	ps := New[string](2)
 	ch := ps.SubOnceEach("t1", "t2")
 
 	ps.Pub("hi", "t1")
@@ -158,7 +158,7 @@ func TestMultiSubOnceEach(t *testing.T) {
 }
 
 func TestMultiPub(t *testing.T) {
-	ps := New(2)
+	ps := New[string](2)
 	ch1 := ps.Sub("t1")
 	ch2 := ps.Sub("t2")
 
@@ -170,7 +170,7 @@ func TestMultiPub(t *testing.T) {
 }
 
 func TestTryPub(t *testing.T) {
-	ps := New(1)
+	ps := New[string](1)
 	defer ps.Shutdown()
 
 	ch := ps.Sub("t1")
@@ -191,7 +191,7 @@ func TestTryPub(t *testing.T) {
 }
 
 func TestMultiUnsub(t *testing.T) {
-	ps := New(1)
+	ps := New[string](1)
 	defer ps.Shutdown()
 
 	ch := ps.Sub("t1", "t2", "t3")
@@ -205,7 +205,7 @@ func TestMultiUnsub(t *testing.T) {
 }
 
 func TestMultiClose(t *testing.T) {
-	ps := New(2)
+	ps := New[string](2)
 	defer ps.Shutdown()
 
 	ch := ps.Sub("t1", "t2")
@@ -219,10 +219,10 @@ func TestMultiClose(t *testing.T) {
 	checkContents(t, ch, []string{"hi", "hello"})
 }
 
-func checkContents(t *testing.T, ch chan interface{}, vals []string) {
-	contents := []string{}
+func checkContents[Item any](t *testing.T, ch chan Item, vals []string) {
+	contents := []Item{}
 	for v := range ch {
-		contents = append(contents, v.(string))
+		contents = append(contents, v)
 	}
 
 	if !reflect.DeepEqual(contents, vals) {
