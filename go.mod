@@ -1,3 +1,3 @@
 module github.com/cskr/pubsub
 
-go 1.12
+go 1.18
