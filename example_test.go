@@ -9,7 +9,7 @@ import (
 const topic = "topic"
 
 func Example() {
-	ps := pubsub.New(0)
+	ps := pubsub.New[string](0)
 	ch := ps.Sub(topic)
 	go publish(ps)
 
@@ -35,7 +35,7 @@ func Example() {
 	// Received message, 6 times.
 }
 
-func publish(ps *pubsub.PubSub) {
+func publish[T string](ps *pubsub.PubSub[T]) {
 	for {
 		ps.Pub("message", topic)
 	}
