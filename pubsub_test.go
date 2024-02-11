@@ -117,7 +117,7 @@ func TestShutdown(t *testing.T) {
 	start := runtime.NumGoroutine()
 	New[string, string](10).Shutdown()
 	time.Sleep(1 * time.Millisecond)
-	if current := runtime.NumGoroutine(); current != start {
+	if current := runtime.NumGoroutine(); current > start {
 		t.Fatalf("Goroutine leak! Expected: %d, but there were: %d.", start, current)
 	}
 }

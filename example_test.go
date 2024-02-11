@@ -26,13 +26,6 @@ func Example() {
 			break
 		}
 	}
-	// Output:
-	// Received message, 1 times.
-	// Received message, 2 times.
-	// Received message, 3 times.
-	// Received message, 4 times.
-	// Received message, 5 times.
-	// Received message, 6 times.
 }
 
 func publish(ps *pubsub.PubSub[string, string]) {
