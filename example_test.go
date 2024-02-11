@@ -3,7 +3,7 @@ package pubsub_test
 import (
 	"fmt"
 
-	"github.com/cskr/pubsub"
+	"github.com/cskr/pubsub/v2"
 )
 
 const topic = "topic"
