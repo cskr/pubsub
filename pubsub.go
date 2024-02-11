@@ -1,13 +1,12 @@
-// Copyright 2013, Chandra Sekar S.  All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// Copyright 2013, Chandra Sekar S. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be found
+// in the LICENSE file.
 
 // Package pubsub implements a simple multi-topic pub-sub
 // library.
 //
-// Topics must be strings and messages of any type can be
-// published. A topic can have any number of subcribers and
-// all of them receive messages published on the topic.
+// A topic can have any number of subcribers. All subscribers receive messages
+// published on the topic.
 package pubsub
 
 type operation int
@@ -37,16 +36,16 @@ type cmd[T comparable, M any] struct {
 	msg    M
 }
 
-// New creates a new PubSub and starts a goroutine for handling operations.
-// The capacity of the channels created by Sub and SubOnce will be as specified.
+// New creates a new PubSub and starts a goroutine for handling operations. Sub
+// and SubOnce will create channels with the given capacity.
 func New[T comparable, M any](capacity int) *PubSub[T, M] {
 	ps := &PubSub[T, M]{make(chan cmd[T, M]), capacity}
 	go ps.start()
 	return ps
 }
 
-// Sub returns a channel on which messages published on any of
-// the specified topics can be received.
+// Sub returns a channel from which messages published on the specified topics
+// can be received.
 func (ps *PubSub[T, M]) Sub(topics ...T) chan M {
 	return ps.sub(sub, topics...)
 }
@@ -80,21 +79,19 @@ func (ps *PubSub[T, M]) AddSubOnceEach(ch chan M, topics ...T) {
 	ps.cmdChan <- cmd[T, M]{op: subOnceEach, topics: topics, ch: ch}
 }
 
-// Pub publishes the given message to all subscribers of
-// the specified topics.
+// Pub publishes the given message to all subscribers of the specified topics.
 func (ps *PubSub[T, M]) Pub(msg M, topics ...T) {
 	ps.cmdChan <- cmd[T, M]{op: pub, topics: topics, msg: msg}
 }
 
-// TryPub publishes the given message to all subscribers of
-// the specified topics if the topic has buffer space.
+// TryPub publishes the given message to all subscribers of the specified topics
+// if the topic has buffer space.
 func (ps *PubSub[T, M]) TryPub(msg M, topics ...T) {
 	ps.cmdChan <- cmd[T, M]{op: tryPub, topics: topics, msg: msg}
 }
 
-// Unsub unsubscribes the given channel from the specified
-// topics. If no topic is specified, it is unsubscribed
-// from all topics.
+// Unsub unsubscribes the given channel from the specified topics. If no topic
+// is specified, it is unsubscribed from all topics.
 //
 // Unsub must be called from a goroutine that is different from the subscriber.
 // The subscriber must consume messages from the channel until it reaches the
@@ -108,9 +105,9 @@ func (ps *PubSub[T, M]) Unsub(ch chan M, topics ...T) {
 	ps.cmdChan <- cmd[T, M]{op: unsub, topics: topics, ch: ch}
 }
 
-// Close closes all channels currently subscribed to the specified topics.
-// If a channel is subscribed to multiple topics, some of which is
-// not specified, it is not closed.
+// Close closes all channels currently subscribed to the specified topics. If a
+// channel is subscribed to multiple topics, some of which is not specified, it
+// is not closed.
 func (ps *PubSub[T, M]) Close(topics ...T) {
 	ps.cmdChan <- cmd[T, M]{op: closeTopic, topics: topics}
 }
@@ -173,8 +170,8 @@ loop:
 	}
 }
 
-// registry maintains the current subscription state. It's not
-// safe to access a registry from multiple goroutines simultaneously.
+// registry maintains the current subscription state. It is not safe to access a
+// registry from multiple goroutines concurrently.
 type registry[T comparable, M any] struct {
 	topics    map[T]map[chan M]subType
 	revTopics map[chan M]map[T]bool
