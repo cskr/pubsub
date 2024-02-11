@@ -25,71 +25,71 @@ const (
 )
 
 // PubSub is a collection of topics.
-type PubSub[Item any] struct {
-	cmdChan  chan cmd[Item]
+type PubSub[T comparable, M any] struct {
+	cmdChan  chan cmd[T, M]
 	capacity int
 }
 
-type cmd[Item any] struct {
+type cmd[T comparable, M any] struct {
 	op     operation
-	topics []string
-	ch     chan Item
-	msg    Item
+	topics []T
+	ch     chan M
+	msg    M
 }
 
 // New creates a new PubSub and starts a goroutine for handling operations.
 // The capacity of the channels created by Sub and SubOnce will be as specified.
-func New[Item any](capacity int) *PubSub[Item] {
-	ps := &PubSub[Item]{make(chan cmd[Item]), capacity}
+func New[T comparable, M any](capacity int) *PubSub[T, M] {
+	ps := &PubSub[T, M]{make(chan cmd[T, M]), capacity}
 	go ps.start()
 	return ps
 }
 
 // Sub returns a channel on which messages published on any of
 // the specified topics can be received.
-func (ps *PubSub[Item]) Sub(topics ...string) chan Item {
+func (ps *PubSub[T, M]) Sub(topics ...T) chan M {
 	return ps.sub(sub, topics...)
 }
 
 // SubOnce is similar to Sub, but only the first message published, after subscription,
 // on any of the specified topics can be received.
-func (ps *PubSub[Item]) SubOnce(topics ...string) chan Item {
+func (ps *PubSub[T, M]) SubOnce(topics ...T) chan M {
 	return ps.sub(subOnce, topics...)
 }
 
 // SubOnceEach returns a channel on which callers receive, at most, one message
 // for each topic.
-func (ps *PubSub[Item]) SubOnceEach(topics ...string) chan Item {
+func (ps *PubSub[T, M]) SubOnceEach(topics ...T) chan M {
 	return ps.sub(subOnceEach, topics...)
 }
 
-func (ps *PubSub[Item]) sub(op operation, topics ...string) chan Item {
-	ch := make(chan Item, ps.capacity)
-	ps.cmdChan <- cmd[Item]{op: op, topics: topics, ch: ch}
+func (ps *PubSub[T, M]) sub(op operation, topics ...T) chan M {
+	ch := make(chan M, ps.capacity)
+	ps.cmdChan <- cmd[T, M]{op: op, topics: topics, ch: ch}
 	return ch
 }
 
 // AddSub adds subscriptions to an existing channel.
-func (ps *PubSub[Item]) AddSub(ch chan Item, topics ...string) {
-	ps.cmdChan <- cmd[Item]{op: sub, topics: topics, ch: ch}
+func (ps *PubSub[T, M]) AddSub(ch chan M, topics ...T) {
+	ps.cmdChan <- cmd[T, M]{op: sub, topics: topics, ch: ch}
 }
 
 // AddSubOnceEach adds subscriptions to an existing channel with SubOnceEach
 // behavior.
-func (ps *PubSub[Item]) AddSubOnceEach(ch chan Item, topics ...string) {
-	ps.cmdChan <- cmd[Item]{op: subOnceEach, topics: topics, ch: ch}
+func (ps *PubSub[T, M]) AddSubOnceEach(ch chan M, topics ...T) {
+	ps.cmdChan <- cmd[T, M]{op: subOnceEach, topics: topics, ch: ch}
 }
 
 // Pub publishes the given message to all subscribers of
 // the specified topics.
-func (ps *PubSub[Item]) Pub(msg Item, topics ...string) {
-	ps.cmdChan <- cmd[Item]{op: pub, topics: topics, msg: msg}
+func (ps *PubSub[T, M]) Pub(msg M, topics ...T) {
+	ps.cmdChan <- cmd[T, M]{op: pub, topics: topics, msg: msg}
 }
 
 // TryPub publishes the given message to all subscribers of
 // the specified topics if the topic has buffer space.
-func (ps *PubSub[Item]) TryPub(msg Item, topics ...string) {
-	ps.cmdChan <- cmd[Item]{op: tryPub, topics: topics, msg: msg}
+func (ps *PubSub[T, M]) TryPub(msg M, topics ...T) {
+	ps.cmdChan <- cmd[T, M]{op: tryPub, topics: topics, msg: msg}
 }
 
 // Unsub unsubscribes the given channel from the specified
@@ -99,31 +99,31 @@ func (ps *PubSub[Item]) TryPub(msg Item, topics ...string) {
 // Unsub must be called from a goroutine that is different from the subscriber.
 // The subscriber must consume messages from the channel until it reaches the
 // end. Not doing so can result in a deadlock.
-func (ps *PubSub[Item]) Unsub(ch chan Item, topics ...string) {
+func (ps *PubSub[T, M]) Unsub(ch chan M, topics ...T) {
 	if len(topics) == 0 {
-		ps.cmdChan <- cmd[Item]{op: unsubAll, ch: ch}
+		ps.cmdChan <- cmd[T, M]{op: unsubAll, ch: ch}
 		return
 	}
 
-	ps.cmdChan <- cmd[Item]{op: unsub, topics: topics, ch: ch}
+	ps.cmdChan <- cmd[T, M]{op: unsub, topics: topics, ch: ch}
 }
 
 // Close closes all channels currently subscribed to the specified topics.
 // If a channel is subscribed to multiple topics, some of which is
 // not specified, it is not closed.
-func (ps *PubSub[Item]) Close(topics ...string) {
-	ps.cmdChan <- cmd[Item]{op: closeTopic, topics: topics}
+func (ps *PubSub[T, M]) Close(topics ...T) {
+	ps.cmdChan <- cmd[T, M]{op: closeTopic, topics: topics}
 }
 
 // Shutdown closes all subscribed channels and terminates the goroutine.
-func (ps *PubSub[Item]) Shutdown() {
-	ps.cmdChan <- cmd[Item]{op: shutdown}
+func (ps *PubSub[T, M]) Shutdown() {
+	ps.cmdChan <- cmd[T, M]{op: shutdown}
 }
 
-func (ps *PubSub[Item]) start() {
-	reg := registry[Item]{
-		topics:    make(map[string]map[chan Item]subType),
-		revTopics: make(map[chan Item]map[string]bool),
+func (ps *PubSub[T, M]) start() {
+	reg := registry[T, M]{
+		topics:    make(map[T]map[chan M]subType),
+		revTopics: make(map[chan M]map[T]bool),
 	}
 
 loop:
@@ -175,9 +175,9 @@ loop:
 
 // registry maintains the current subscription state. It's not
 // safe to access a registry from multiple goroutines simultaneously.
-type registry[Item any] struct {
-	topics    map[string]map[chan Item]subType
-	revTopics map[chan Item]map[string]bool
+type registry[T comparable, M any] struct {
+	topics    map[T]map[chan M]subType
+	revTopics map[chan M]map[T]bool
 }
 
 type subType int
@@ -188,19 +188,19 @@ const (
 	normal
 )
 
-func (reg *registry[Item]) add(topic string, ch chan Item, st subType) {
+func (reg *registry[T, M]) add(topic T, ch chan M, st subType) {
 	if reg.topics[topic] == nil {
-		reg.topics[topic] = make(map[chan Item]subType)
+		reg.topics[topic] = make(map[chan M]subType)
 	}
 	reg.topics[topic][ch] = st
 
 	if reg.revTopics[ch] == nil {
-		reg.revTopics[ch] = make(map[string]bool)
+		reg.revTopics[ch] = make(map[T]bool)
 	}
 	reg.revTopics[ch][topic] = true
 }
 
-func (reg *registry[Item]) send(topic string, msg Item) {
+func (reg *registry[T, M]) send(topic T, msg M) {
 	for ch, st := range reg.topics[topic] {
 		ch <- msg
 		switch st {
@@ -214,7 +214,7 @@ func (reg *registry[Item]) send(topic string, msg Item) {
 	}
 }
 
-func (reg *registry[Item]) sendNoWait(topic string, msg Item) {
+func (reg *registry[T, M]) sendNoWait(topic T, msg M) {
 	for ch, st := range reg.topics[topic] {
 		select {
 		case ch <- msg:
@@ -232,19 +232,19 @@ func (reg *registry[Item]) sendNoWait(topic string, msg Item) {
 	}
 }
 
-func (reg *registry[Item]) removeTopic(topic string) {
+func (reg *registry[T, M]) removeTopic(topic T) {
 	for ch := range reg.topics[topic] {
 		reg.remove(topic, ch)
 	}
 }
 
-func (reg *registry[Item]) removeChannel(ch chan Item) {
+func (reg *registry[T, M]) removeChannel(ch chan M) {
 	for topic := range reg.revTopics[ch] {
 		reg.remove(topic, ch)
 	}
 }
 
-func (reg *registry[Item]) remove(topic string, ch chan Item) {
+func (reg *registry[T, M]) remove(topic T, ch chan M) {
 	if _, ok := reg.topics[topic]; !ok {
 		return
 	}
