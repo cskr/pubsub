@@ -30,10 +30,10 @@ type PubSub[T comparable, M any] struct {
 }
 
 type cmd[T comparable, M any] struct {
-	op     operation
-	topics []T
-	ch     chan M
 	msg    M
+	ch     chan M
+	topics []T
+	op     operation
 }
 
 // New creates a new PubSub and starts a goroutine for handling operations. Sub
