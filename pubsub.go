@@ -5,7 +5,7 @@
 // Package pubsub implements a simple multi-topic pub-sub
 // library.
 //
-// A topic can have any number of subcribers. All subscribers receive messages
+// A topic can have any number of subscribers. All subscribers receive messages
 // published on the topic.
 package pubsub
 
